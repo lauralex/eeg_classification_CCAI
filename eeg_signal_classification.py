@@ -1,5 +1,8 @@
 # Define options
 import argparse
+from torch.utils.tensorboard import SummaryWriter
+
+tensorboard_writer = SummaryWriter('my_runs')
 parser = argparse.ArgumentParser(description="Template")
 # Dataset options
 
@@ -8,11 +11,11 @@ parser = argparse.ArgumentParser(description="Template")
 ### BLOCK DESIGN ###
 #Data
 #parser.add_argument('-ed', '--eeg-dataset', default=r"data\block\eeg_55_95_std.pth", help="EEG dataset path") #55-95Hz
-parser.add_argument('-ed', '--eeg-dataset', default=r"data\block\eeg_5_95_std.pth", help="EEG dataset path") #5-95Hz
+parser.add_argument('-ed', '--eeg-dataset', default=r"C:\Users\Authority\Desktop\eeg_visual_classification\eeg_55_95_std.pth", help="EEG dataset path") #5-95Hz
 #parser.add_argument('-ed', '--eeg-dataset', default=r"data\block\eeg_14_70_std.pth", help="EEG dataset path") #14-70Hz
 #Splits
-parser.add_argument('-sp', '--splits-path', default=r"data\block\block_splits_by_image_all.pth", help="splits path") #All subjects
-#parser.add_argument('-sp', '--splits-path', default=r"data\block\block_splits_by_image_single.pth", help="splits path") #Single subject
+#parser.add_argument('-sp', '--splits-path', default="./block_splits_by_image_all.pth", help="splits path") #All subjects
+parser.add_argument('-sp', '--splits-path', default=r"C:\Users\Authority\Desktop\eeg_visual_classification\block_splits_by_image_single.pth", help="splits path") #Single subject
 ### BLOCK DESIGN ###
 
 parser.add_argument('-sn', '--split-num', default=0, type=int, help="split number") #leave this always to zero.
@@ -25,7 +28,7 @@ parser.add_argument('-tl', '--time_low', default=20, type=float, help="lowest ti
 parser.add_argument('-th', '--time_high', default=460,  type=float, help="highest time value")
 
 # Model type/options
-parser.add_argument('-mt','--model_type', default='lstm', help='specify which generator should be used: lstm|EEGChannelNet')
+parser.add_argument('-mt','--model_type', default='EEGChannelNet', help='specify which generator should be used: lstm|EEGChannelNet')
 # It is possible to test out multiple deep classifiers:
 # - lstm is the model described in the paper "Deep Learning Human Mind for Automated Visual Classification”, in CVPR 2017
 # - model10 is the model described in the paper "Decoding brain representations by multimodal learning of neural activity and visual features", TPAMI 2020
@@ -52,23 +55,15 @@ opt = parser.parse_args()
 print(opt)
 
 # Imports
-import sys
-import os
-import random
-import math
-import time
-import torch; torch.utils.backcompat.broadcast_warning.enabled = True
+import torch
 from torch.utils.data import DataLoader
-from torchvision import transforms, datasets
-import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim
-import torch.backends.cudnn as cudnn; cudnn.benchmark = True
-from scipy.fftpack import fft, rfft, fftfreq, irfft, ifft, rfftfreq
-from scipy import signal
-import numpy as np
-import models
+import torch.backends.cudnn as cudnn
 import importlib
+
+torch.utils.backcompat.broadcast_warning.enabled = True
+cudnn.benchmark = True
 
 # Dataset class
 class EEGDataset:
@@ -97,7 +92,7 @@ class EEGDataset:
         eeg = self.data[i]["eeg"].float().t()
         eeg = eeg[opt.time_low:opt.time_high,:]
 
-        if opt.model_type == "model10":
+        if opt.model_type == "EEGChannelNet":
             eeg = eeg.t()
             eeg = eeg.view(1,128,opt.time_high-opt.time_low)
         # Get label
@@ -165,6 +160,10 @@ best_epoch = 0
 predicted_labels = [] 
 correct_labels = []
 
+t_graph_activated = True
+
+is_first = True
+
 for epoch in range(1, opt.epochs+1):
     # Initialize loss/accuracy variables
     losses = {"train": 0, "val": 0, "test": 0}
@@ -191,6 +190,11 @@ for epoch in range(1, opt.epochs+1):
                 input = input.to("cuda") 
                 target = target.to("cuda") 
             # Forward
+
+            if is_first and t_graph_activated:
+                tensorboard_writer.add_graph(model, input)
+                is_first = False
+            is_first = False
             output = model(input)
 
             # Compute loss

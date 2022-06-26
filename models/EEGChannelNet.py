@@ -1,9 +1,9 @@
-# This is the model presented in the work: S. Palazzo, C. Spampinato, I. Kavasidis, D. Giordano, J. Schmidt, M. Shah, Decoding Brain Representations by 
-# Multimodal Learning of Neural Activity and Visual Features,  IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE, 2020, doi: 10.1109/TPAMI.2020.2995909
-import torch
-import torch.nn as nn
+# This is the model presented in the work: S. Palazzo, C. Spampinato, I. Kavasidis, D. Giordano, J. Schmidt, M. Shah,
+# Decoding Brain Representations by Multimodal Learning of Neural Activity and Visual Features,  IEEE TRANSACTIONS ON
+# PATTERN ANALYSIS AND MACHINE INTELLIGENCE, 2020, doi: 10.1109/TPAMI.2020.2995909
 
-from layers import * 
+from layers import *
+
 
 class FeaturesExtractor(nn.Module):
     def __init__(self, in_channels, temp_channels, out_channels, input_width, in_height,
@@ -12,7 +12,8 @@ class FeaturesExtractor(nn.Module):
         super().__init__()
 
         self.temporal_block = TemporalBlock(
-            in_channels, temp_channels, num_temporal_layers, temporal_kernel, temporal_stride, temporal_dilation_list, input_width
+            in_channels, temp_channels, num_temporal_layers, temporal_kernel, temporal_stride, temporal_dilation_list,
+            input_width
         )
 
         self.spatial_block = SpatialBlock(
@@ -44,8 +45,9 @@ class FeaturesExtractor(nn.Module):
                 out = res_block(out)
 
         out = self.final_conv(out)
-        
+
         return out
+
 
 class Model(nn.Module):
     '''The model for EEG classification.
@@ -70,31 +72,34 @@ class Model(nn.Module):
         down_kernel: size of the bottleneck kernel
         down_stride: size of the bottleneck stride
         '''
+
     def __init__(self, in_channels=1, temp_channels=10, out_channels=50, num_classes=40, embedding_size=1000,
-                 input_width=440, input_height=128, temporal_dilation_list=[(1,1),(1,2),(1,4),(1,8),(1,16)],
-                 temporal_kernel=(1,33), temporal_stride=(1,2),
+                 input_width=440, input_height=128, temporal_dilation_list=[(1, 1), (1, 2), (1, 4), (1, 8), (1, 16)],
+                 temporal_kernel=(1, 33), temporal_stride=(1, 2),
                  num_temp_layers=4,
-                 num_spatial_layers=4, spatial_stride=(2,1), num_residual_blocks=4, down_kernel=3, down_stride=2):
+                 num_spatial_layers=4, spatial_stride=(2, 1), num_residual_blocks=4, down_kernel=3, down_stride=2):
         super().__init__()
 
         self.encoder = FeaturesExtractor(in_channels, temp_channels, out_channels, input_width, input_height,
-                                     temporal_kernel, temporal_stride,
-                                     temporal_dilation_list, num_temp_layers,
-                                     num_spatial_layers, spatial_stride, num_residual_blocks, down_kernel, down_stride
-                                     )
+                                         temporal_kernel, temporal_stride,
+                                         temporal_dilation_list, num_temp_layers,
+                                         num_spatial_layers, spatial_stride, num_residual_blocks, down_kernel,
+                                         down_stride
+                                         )
 
-        encoding_size = self.encoder(torch.zeros(1, in_channels, input_height, input_width)).contiguous().view(-1).size()[0]
+        encoding_size = \
+        self.encoder(torch.zeros(1, in_channels, input_height, input_width)).contiguous().view(-1).size()[0]
 
         self.classifier = nn.Sequential(
             nn.Linear(encoding_size, embedding_size),
             nn.ReLU(True),
-            nn.Linear(embedding_size, num_classes), 
+            nn.Linear(embedding_size, num_classes),
         )
 
     def forward(self, x):
         out = self.encoder(x)
 
-        out = out.view(x.size(0), -1)
+        out = out.view(x.size(0), -1) # fifth tensor
 
         out = self.classifier(out)
 
