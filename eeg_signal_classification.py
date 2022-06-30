@@ -1,5 +1,6 @@
 # Define options
 import argparse
+import os
 
 import mne
 import numpy as np
@@ -8,6 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 tensorboard_writer = SummaryWriter('my_runs')
 parser = argparse.ArgumentParser(description="Template")
+os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
 # Dataset options
 
 # Data - Data needs to be pre-filtered and filtered data is available
@@ -150,8 +152,16 @@ class MyPersonalData(Dataset):
     def __getitem__(self, item):
         return self.eeg_epoch_data[item], self.eeg_epoch_label
 
+class FinalPersonalData(Dataset):
+    def __init__(self, eeg_data, eeg_label):
+        self.eeg_data = eeg_data
+        self.eeg_label = eeg_label
 
+    def __len__(self):
+        return len(self.eeg_data)
 
+    def __getitem__(self, item):
+        return self.eeg_data[item], self.eeg_label[item]
 # Load dataset
 
 
@@ -159,29 +169,59 @@ class MyPersonalData(Dataset):
 eeglab_raw_ec = mne.io.read_raw_eeglab('sub-010002_EC.set')
 eeglab_raw_eo = mne.io.read_raw_eeglab('sub-010002_EO.set')
 
-ec_class = 1
-eo_class = 2
+ec_class = 0
+eo_class = 1
 eeg_ec = torch.tensor(eeglab_raw_ec.get_data()).unsqueeze(0)
 eeg_eo = torch.tensor(eeglab_raw_eo.get_data()).unsqueeze(0)
 
-eeglab_raw_ec_split = torch.tensor_split(eeg_ec, 2, dim=2)
-eeglab_raw_eo_split = torch.tensor_split(eeg_eo, 2, dim=2)
+eeglab_raw_ec_split = torch.split(eeg_ec, 500, dim=2)
+eeglab_raw_eo_split = torch.split(eeg_eo, 500, dim=2)
 
-my_personal_dataset_ec = MyPersonalData(eeglab_raw_ec_split, ec_class)
-my_personal_dataset_eo = MyPersonalData(eeglab_raw_eo_split, eo_class)
+if eeglab_raw_ec_split[-1].shape[2] != 500:
+    eeglab_raw_ec_split = eeglab_raw_ec_split[:-1]
 
-my_personal_loader_ec = DataLoader(my_personal_dataset_ec, batch_size=2)
+if eeglab_raw_eo_split[-1].shape[2] != 500:
+    eeglab_raw_eo_split = eeglab_raw_eo_split[:-1]
+
+eeglab_tuple_concat = eeglab_raw_ec_split + eeglab_raw_eo_split
+eeglab_tensor_concat = torch.stack(eeglab_tuple_concat)
+
+eeglab_label_tensor = torch.cat((torch.full((len(eeglab_raw_ec_split),), ec_class), torch.full((len(eeglab_raw_eo_split), ), eo_class)))
+
+#my_conc_dataset = my_personal_dataset_ec + my_personal_dataset_eo
+
+my_train_data, my_test_data, my_train_label, my_test_label = train_test_split(eeglab_tensor_concat, eeglab_label_tensor, train_size=0.8)
+
+my_train_data, my_val_data, my_train_label, my_val_label = train_test_split(my_train_data, my_train_label, test_size=0.1)
+
+my_train_data_mean = my_train_data.mean(dim=3, keepdim=True)
+my_train_data_std = my_train_data.std(dim=3, keepdim=True)
+my_train_data = ((my_train_data - my_train_data_mean) / my_train_data_std).to(torch.float)
+
+my_val_data_mean = my_val_data.mean(dim=3, keepdim=True)
+my_val_data_std = my_val_data.std(dim=3, keepdim=True)
+my_val_data = ((my_val_data - my_val_data_mean) / my_val_data_std).to(torch.float)
+
+my_test_data_mean = my_test_data.mean(dim=3, keepdim=True)
+my_test_data_std = my_test_data.std(dim=3, keepdim=True)
+my_test_data = ((my_test_data - my_test_data_mean) / my_test_data_std).to(torch.float)
+
+my_train_data_dataset = FinalPersonalData(my_train_data, my_train_label)
+my_val_data_dataset = FinalPersonalData(my_val_data, my_val_label)
+my_test_data_dataset = FinalPersonalData(my_test_data, my_test_label)
+
+my_train_data_loader = DataLoader(my_train_data_dataset, batch_size=16, shuffle=True)
+my_val_data_loader = DataLoader(my_val_data_dataset, batch_size=16, shuffle=True)
+my_test_data_loader = DataLoader(my_test_data_dataset, batch_size=16, shuffle=True)
 
 # Create loaders
 # loaders = {split: DataLoader(Splitter(dataset, split_path=opt.splits_path, split_num=opt.split_num, split_name=split),
 #                              batch_size=opt.batch_size, drop_last=True, shuffle=True) for split in
 #            ["train", "val", "test"]}
 
-#loaders = {'train': my_train_loader, 'val': my_val_loader, 'test': my_test_loader}
+loaders = {'train': my_train_data_loader, 'val': my_val_data_loader, 'test': my_test_data_loader}
 
 # Load model
-for elem in my_personal_loader_ec:
-    print(elem)
 
 model_options = {key: int(value) if value.isdigit() else (float(value) if value[0].isdigit() else value) for
                  (key, value) in [x.split("=") for x in opt.model_params]}
@@ -211,7 +251,7 @@ best_epoch = 0
 predicted_labels = []
 correct_labels = []
 
-t_graph_activated = True
+t_graph_activated = False
 
 is_first = True
 

@@ -52,6 +52,8 @@ class SpatialBlock(nn.Module):
         for i in range(num_spatial_layers):
             kernel_list.append(((input_height // (i + 1)), 1))
 
+        kernel_list[len(kernel_list) - 1] =(15, 1)
+
         padding = []
         for kernel in kernel_list:
             temp_pad = math.floor((kernel[0] - 1) / 2)# - 1 * (kernel[1] // 2 - 1)

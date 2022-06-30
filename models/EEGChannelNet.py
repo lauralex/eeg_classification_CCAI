@@ -73,11 +73,11 @@ class Model(nn.Module):
         down_stride: size of the bottleneck stride
         '''
 
-    def __init__(self, in_channels=1, temp_channels=10, out_channels=50, num_classes=40, embedding_size=1000,
-                 input_width=440, input_height=128, temporal_dilation_list=[(1, 1), (1, 2), (1, 4), (1, 8), (1, 16)],
-                 temporal_kernel=(1, 33), temporal_stride=(1, 2),
+    def __init__(self, in_channels=1, temp_channels=10, out_channels=50, num_classes=2, embedding_size=1000,
+                 input_width=500, input_height=59, temporal_dilation_list=[(1, 1), (1, 2), (1, 4), (1, 8), (1, 16)],
+                 temporal_kernel=(1, 31), temporal_stride=(1, 2),
                  num_temp_layers=4,
-                 num_spatial_layers=4, spatial_stride=(2, 1), num_residual_blocks=4, down_kernel=3, down_stride=2):
+                 num_spatial_layers=4, spatial_stride=(2, 1), num_residual_blocks=2, down_kernel=3, down_stride=2):
         super().__init__()
 
         self.encoder = FeaturesExtractor(in_channels, temp_channels, out_channels, input_width, input_height,
