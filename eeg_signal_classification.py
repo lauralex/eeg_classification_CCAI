@@ -148,7 +148,7 @@ class MyPersonalData(Dataset):
         return len(self.eeg_epoch_data)
 
     def __getitem__(self, item):
-        return self.eeg_epoch_data[item], self.eeg_epoch_label[item]
+        return self.eeg_epoch_data[item], self.eeg_epoch_label
 
 
 
@@ -156,47 +156,32 @@ class MyPersonalData(Dataset):
 
 
 # dataset = EEGDataset(opt.eeg_dataset)
-eeglab_raw1 = mne.io.read_raw_eeglab('sub-010002_EC.set')
-e1_data = eeglab_raw1.get_data()
-e1_annot = eeglab_raw1.annotations
-e1_events_from_annot, e1_event_dict = mne.events_from_annotations(eeglab_raw1)
-#eq_events = mne.make_fixed_length_events(eeglab_raw1)
-e1_epochs = mne.Epochs(eeglab_raw1, e1_events_from_annot, event_repeated='merge')
-e1_epochs.drop_bad()
-e1_epoch_len = len(e1_epochs)
+eeglab_raw_ec = mne.io.read_raw_eeglab('sub-010002_EC.set')
+eeglab_raw_eo = mne.io.read_raw_eeglab('sub-010002_EO.set')
 
-e1_epoch_train_data, e1_epoch_test_data, e1_epoch_train_label, e1_epoch_test_label = train_test_split(np.expand_dims(e1_epochs.get_data(), 1), e1_epochs.events[:,2], train_size=0.8)
-e1_epoch_train_data, e1_epoch_val_data, e1_epoch_train_label, e1_epoch_val_label = train_test_split(e1_epoch_train_data, e1_epoch_train_label, test_size=0.10)
+ec_class = 1
+eo_class = 2
+eeg_ec = torch.tensor(eeglab_raw_ec.get_data()).unsqueeze(0)
+eeg_eo = torch.tensor(eeglab_raw_eo.get_data()).unsqueeze(0)
 
-e1_epoch_train_data = torch.from_numpy(e1_epoch_train_data)
-e1_epoch_val_data = torch.from_numpy(e1_epoch_val_data)
-e1_epoch_test_data = torch.from_numpy(e1_epoch_test_data)
+eeglab_raw_ec_split = torch.tensor_split(eeg_ec, 2, dim=2)
+eeglab_raw_eo_split = torch.tensor_split(eeg_eo, 2, dim=2)
 
-e1_epoch_train_data = ((e1_epoch_train_data - e1_epoch_train_data.mean(dim=3, keepdim=True)) / e1_epoch_train_data.std(dim=3, keepdim=True)).to(torch.float32)
-e1_epoch_val_data = ((e1_epoch_val_data - e1_epoch_val_data.mean(dim=3, keepdim=True)) / e1_epoch_val_data.std(dim=3, keepdim=True)).to(torch.float32)
-e1_epoch_test_data = ((e1_epoch_test_data - e1_epoch_test_data.mean(dim=3, keepdim=True)) / e1_epoch_test_data.std(dim=3, keepdim=True)).to(torch.float32)
+my_personal_dataset_ec = MyPersonalData(eeglab_raw_ec_split, ec_class)
+my_personal_dataset_eo = MyPersonalData(eeglab_raw_eo_split, eo_class)
 
-
-
-my_personal_dataset_train = MyPersonalData(e1_epoch_train_data, e1_epoch_train_label)
-my_personal_dataset_test = MyPersonalData(e1_epoch_test_data, e1_epoch_test_label)
-my_personal_dataset_val = MyPersonalData(e1_epoch_val_data, e1_epoch_val_label)
-
-
-my_train_loader = DataLoader(my_personal_dataset_train, batch_size=opt.batch_size, shuffle=True)
-my_val_loader = DataLoader(my_personal_dataset_val, batch_size=opt.batch_size, shuffle=True)
-my_test_loader = DataLoader(my_personal_dataset_test, batch_size=opt.batch_size, shuffle=True)
+my_personal_loader_ec = DataLoader(my_personal_dataset_ec, batch_size=2)
 
 # Create loaders
 # loaders = {split: DataLoader(Splitter(dataset, split_path=opt.splits_path, split_num=opt.split_num, split_name=split),
 #                              batch_size=opt.batch_size, drop_last=True, shuffle=True) for split in
 #            ["train", "val", "test"]}
 
-loaders = {'train': my_train_loader, 'val': my_val_loader, 'test': my_test_loader}
+#loaders = {'train': my_train_loader, 'val': my_val_loader, 'test': my_test_loader}
 
 # Load model
-# for elem in my_train_loader:
-#     print(elem)
+for elem in my_personal_loader_ec:
+    print(elem)
 
 model_options = {key: int(value) if value.isdigit() else (float(value) if value[0].isdigit() else value) for
                  (key, value) in [x.split("=") for x in opt.model_params]}
